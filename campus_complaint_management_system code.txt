@@ -1,0 +1,369 @@
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class User {
+  String name, roll, email, password, role;
+  User(this.name, this.roll, this.email, this.password, this.role);
+}
+
+class Complaint {
+  String student, title, category, description, location, status;
+  Complaint(this.student, this.title, this.category, this.description, this.location, this.status);
+}
+
+List<User> users = [User("Admin", "", "admin@gmail.com", "admin123", "admin")];
+List<Complaint> complaints = [];
+User? currentUser;
+
+InputDecoration dec(String label) => InputDecoration(labelText: label, border: const OutlineInputBorder());
+void snack(BuildContext c, String msg) => ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(msg)));
+void goReplace(BuildContext c, Widget page) =>
+    Navigator.pushAndRemoveUntil(c, MaterialPageRoute(builder: (_) => page), (r) => false);
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: "Campus Complaint Management",
+        theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo), useMaterial3: true),
+        home: const LoginPage(),
+      );
+}
+
+// ---------------- LOGIN ----------------
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final email = TextEditingController();
+  final password = TextEditingController();
+
+  void login() {
+    final user = users.where((u) => u.email == email.text.trim() && u.password == password.text).firstOrNull;
+    if (user == null) return snack(context, "Invalid email or password");
+    currentUser = user;
+    Navigator.pushReplacement(context,
+        MaterialPageRoute(builder: (_) => user.role == "admin" ? const AdminPage() : const StudentPage()));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text("Campus Complaint Management")),
+        body: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Icon(Icons.school, size: 70),
+            const SizedBox(height: 15),
+            const Text("Login", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 25),
+            TextField(controller: email, decoration: dec("Email")),
+            const SizedBox(height: 15),
+            TextField(controller: password, obscureText: true, decoration: dec("Password")),
+            const SizedBox(height: 20),
+            SizedBox(width: double.infinity, child: ElevatedButton(onPressed: login, child: const Text("LOGIN"))),
+            TextButton(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterPage())),
+              child: const Text("New student? Register"),
+            ),
+          ]),
+        ),
+      );
+}
+
+// ---------------- REGISTER ----------------
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
+  @override
+  State<RegisterPage> createState() => _RegisterPageState();
+}
+
+class _RegisterPageState extends State<RegisterPage> {
+  final name = TextEditingController();
+  final roll = TextEditingController();
+  final email = TextEditingController();
+  final password = TextEditingController();
+
+  void register() {
+    if ([name, roll, email, password].any((c) => c.text.isEmpty)) return snack(context, "Fill all fields");
+    if (users.any((u) => u.email == email.text.trim())) return snack(context, "Email already registered");
+    users.add(User(name.text.trim(), roll.text.trim(), email.text.trim(), password.text, "student"));
+    snack(context, "Registration successful");
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text("Student Registration")),
+        body: ListView(padding: const EdgeInsets.all(20), children: [
+          TextField(controller: name, decoration: dec("Name")),
+          const SizedBox(height: 15),
+          TextField(controller: roll, decoration: dec("Roll Number")),
+          const SizedBox(height: 15),
+          TextField(controller: email, decoration: dec("Email")),
+          const SizedBox(height: 15),
+          TextField(controller: password, obscureText: true, decoration: dec("Password")),
+          const SizedBox(height: 20),
+          ElevatedButton(onPressed: register, child: const Text("REGISTER")),
+        ]),
+      );
+}
+
+// ---------------- STUDENT DASHBOARD ----------------
+class StudentPage extends StatelessWidget {
+  const StudentPage({super.key});
+
+  Widget menu(BuildContext c, String title, IconData icon, Widget page) => Card(
+        child: ListTile(
+          leading: Icon(icon),
+          title: Text(title),
+          trailing: const Icon(Icons.arrow_forward_ios),
+          onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_) => page)),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text("Student Dashboard"), actions: [
+          IconButton(
+            onPressed: () {
+              currentUser = null;
+              goReplace(context, const LoginPage());
+            },
+            icon: const Icon(Icons.logout),
+          )
+        ]),
+        body: ListView(padding: const EdgeInsets.all(20), children: [
+          Text("Hello, ${currentUser!.name} 👋", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 25),
+          menu(context, "Submit Complaint", Icons.edit_note, const SubmitComplaintPage()),
+          menu(context, "My Complaints", Icons.list_alt, const MyComplaintsPage()),
+          menu(context, "My Profile", Icons.person, const ProfilePage()),
+        ]),
+      );
+}
+
+// ---------------- SUBMIT COMPLAINT ----------------
+const categories = ["Classroom", "Hostel", "Library", "Laboratory", "Canteen", "Transport", "Internet", "Other"];
+
+class SubmitComplaintPage extends StatefulWidget {
+  const SubmitComplaintPage({super.key});
+  @override
+  State<SubmitComplaintPage> createState() => _SubmitComplaintPageState();
+}
+
+class _SubmitComplaintPageState extends State<SubmitComplaintPage> {
+  final title = TextEditingController();
+  final description = TextEditingController();
+  final location = TextEditingController();
+  String category = categories.first;
+
+  void submit() {
+    if ([title, description, location].any((c) => c.text.isEmpty)) return snack(context, "Fill all fields");
+    complaints.add(Complaint(currentUser!.name, title.text, category, description.text, location.text, "Pending"));
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Success"),
+        content: const Text("Complaint submitted successfully"),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            child: const Text("OK"),
+          )
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text("Submit Complaint")),
+        body: ListView(padding: const EdgeInsets.all(20), children: [
+          DropdownButtonFormField<String>(
+            value: category,
+            decoration: dec("Category"),
+            items: categories.map((x) => DropdownMenuItem(value: x, child: Text(x))).toList(),
+            onChanged: (x) => setState(() => category = x!),
+          ),
+          const SizedBox(height: 15),
+          TextField(controller: title, decoration: dec("Complaint Title")),
+          const SizedBox(height: 15),
+          TextField(controller: description, maxLines: 4, decoration: dec("Description")),
+          const SizedBox(height: 15),
+          TextField(controller: location, decoration: dec("Location")),
+          const SizedBox(height: 20),
+          ElevatedButton(onPressed: submit, child: const Text("SUBMIT COMPLAINT")),
+        ]),
+      );
+}
+
+// ---------------- MY COMPLAINTS ----------------
+class MyComplaintsPage extends StatelessWidget {
+  const MyComplaintsPage({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final mine = complaints.where((c) => c.student == currentUser!.name).toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text("My Complaints")),
+      body: mine.isEmpty
+          ? const Center(child: Text("No complaints yet"))
+          : ListView.builder(
+              padding: const EdgeInsets.all(10),
+              itemCount: mine.length,
+              itemBuilder: (_, i) {
+                final c = mine[i];
+                return Card(
+                  child: ListTile(
+                    title: Text(c.title),
+                    subtitle: Text("${c.category}\n${c.location}\nStatus: ${c.status}"),
+                    isThreeLine: true,
+                    trailing: Icon(c.status == "Resolved" ? Icons.check_circle : Icons.pending),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
+// ---------------- PROFILE ----------------
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
+  Widget info(String title, String value) => Card(child: ListTile(title: Text(title), subtitle: Text(value)));
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text("My Profile")),
+        body: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(children: [
+            const CircleAvatar(radius: 45, child: Icon(Icons.person, size: 50)),
+            const SizedBox(height: 20),
+            info("Name", currentUser!.name),
+            info("Roll Number", currentUser!.roll),
+            info("Email", currentUser!.email),
+          ]),
+        ),
+      );
+}
+
+// ---------------- ADMIN DASHBOARD ----------------
+class AdminPage extends StatefulWidget {
+  const AdminPage({super.key});
+  @override
+  State<AdminPage> createState() => _AdminPageState();
+}
+
+class _AdminPageState extends State<AdminPage> {
+  Widget stat(String title, int number) => Expanded(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(children: [
+              Text("$number", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)),
+            ]),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    int pending = complaints.where((c) => c.status == "Pending").length;
+    int progress = complaints.where((c) => c.status == "In Progress").length;
+    int resolved = complaints.where((c) => c.status == "Resolved").length;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Admin Dashboard"), actions: [
+        IconButton(
+          onPressed: () {
+            currentUser = null;
+            goReplace(context, const LoginPage());
+          },
+          icon: const Icon(Icons.logout),
+        )
+      ]),
+      body: ListView(padding: const EdgeInsets.all(20), children: [
+        const Text("Statistics", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        Row(children: [
+          stat("Total", complaints.length),
+          stat("Pending", pending),
+          stat("Progress", progress),
+          stat("Resolved", resolved),
+        ]),
+        const SizedBox(height: 25),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.list_alt),
+            title: const Text("All Complaints"),
+            trailing: const Icon(Icons.arrow_forward_ios),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AllComplaintsPage()))
+                .then((_) => setState(() {})),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ---------------- ALL COMPLAINTS ----------------
+class AllComplaintsPage extends StatefulWidget {
+  const AllComplaintsPage({super.key});
+  @override
+  State<AllComplaintsPage> createState() => _AllComplaintsPageState();
+}
+
+class _AllComplaintsPageState extends State<AllComplaintsPage> {
+  void updateStatus(Complaint c) => setState(() {
+        if (c.status == "Pending") c.status = "In Progress";
+        else if (c.status == "In Progress") c.status = "Resolved";
+      });
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text("All Complaints")),
+        body: complaints.isEmpty
+            ? const Center(child: Text("No complaints"))
+            : ListView.builder(
+                padding: const EdgeInsets.all(10),
+                itemCount: complaints.length,
+                itemBuilder: (_, i) {
+                  final c = complaints[i];
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(c.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text("Student: ${c.student}"),
+                        Text("Category: ${c.category}"),
+                        Text("Location: ${c.location}"),
+                        Text("Description: ${c.description}"),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text("Status: ${c.status}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                            if (c.status != "Resolved")
+                              ElevatedButton(
+                                onPressed: () => updateStatus(c),
+                                child: Text(c.status == "Pending" ? "Start" : "Resolve"),
+                              ),
+                          ],
+                        ),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+      );
+}
